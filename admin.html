@@ -14,26 +14,26 @@
     <link rel="stylesheet" href="css/app.css" />
   </head>
   <body>
-    <div id="pin-gate" class="container pin-gate">
+    <div id="password-gate" class="container password-gate">
       <section class="card">
         <h2 style="margin-top: 0">Admin access</h2>
-        <p style="color: var(--text-muted); font-size: 0.9rem">Enter the admin PIN to continue.</p>
-        <form id="pin-form">
+        <p style="color: var(--text-muted); font-size: 0.9rem">Enter the admin password to continue.</p>
+        <form id="password-form">
           <div class="form-group">
-            <label for="pin-input">PIN</label>
+            <label for="password-input">Password</label>
             <input
-              id="pin-input"
+              id="password-input"
               type="password"
-              autocomplete="off"
+              autocomplete="current-password"
               autocapitalize="off"
               spellcheck="false"
               required
             />
           </div>
-          <button type="submit" class="btn btn-primary">Unlock</button>
+          <button type="submit" class="btn btn-primary">Sign in</button>
         </form>
-        <p id="pin-error" class="hidden" style="color: var(--danger); font-size: 0.85rem; margin-top: 0.75rem">
-          Incorrect PIN
+        <p id="password-error" class="hidden" style="color: var(--danger); font-size: 0.85rem; margin-top: 0.75rem">
+          Incorrect password
         </p>
       </section>
       <a href="index.html" class="back-link">← Back to home</a>

@@ -1,4 +1,4 @@
-import { ADMIN_PIN, APP_BASE_URL, VENUE_CHECKIN_CODE } from "./firebase-config.js";
+import { ADMIN_PASSWORD, APP_BASE_URL, VENUE_CHECKIN_CODE } from "./firebase-config.js";
 import {
   ensureAuth,
   getAllMembers,
@@ -36,10 +36,11 @@ import { drawQRToCanvas } from "./qrcode-lib.js";
 
 const SESSION_KEY = "hrcc_admin_unlocked";
 
-const pinGate = document.getElementById("pin-gate");
+const passwordGate = document.getElementById("password-gate");
 const adminApp = document.getElementById("admin-app");
-const pinForm = document.getElementById("pin-form");
-const pinError = document.getElementById("pin-error");
+const passwordForm = document.getElementById("password-form");
+const passwordInput = document.getElementById("password-input");
+const passwordError = document.getElementById("password-error");
 
 const memberForm = document.getElementById("member-form");
 const memberDocId = document.getElementById("member-doc-id");
@@ -141,27 +142,27 @@ function todayInputValue() {
 
 function unlockAdmin() {
   sessionStorage.setItem(SESSION_KEY, "1");
-  pinGate.classList.add("hidden");
+  passwordGate.classList.add("hidden");
   adminApp.classList.remove("hidden");
   initAdmin();
 }
 
 function checkSession() {
   if (sessionStorage.getItem(SESSION_KEY) === "1") {
-    pinGate.classList.add("hidden");
+    passwordGate.classList.add("hidden");
     adminApp.classList.remove("hidden");
     initAdmin();
   }
 }
 
-pinForm.addEventListener("submit", (e) => {
+passwordForm.addEventListener("submit", (e) => {
   e.preventDefault();
-  const pin = document.getElementById("pin-input").value;
-  if (pin === ADMIN_PIN) {
-    pinError.classList.add("hidden");
+  const password = passwordInput?.value ?? "";
+  if (password === ADMIN_PASSWORD) {
+    passwordError.classList.add("hidden");
     unlockAdmin();
   } else {
-    pinError.classList.remove("hidden");
+    passwordError.classList.remove("hidden");
   }
 });
 

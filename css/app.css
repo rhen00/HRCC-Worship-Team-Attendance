@@ -910,7 +910,7 @@ a {
   color: var(--accent);
 }
 
-.pin-gate {
+.password-gate {
   min-height: 80dvh;
   display: flex;
   flex-direction: column;

@@ -32,9 +32,9 @@ Open: `http://localhost:8080`
 
 Or use [Firebase Hosting](https://firebase.google.com/docs/hosting) for HTTPS on phones.
 
-## 3. Admin PIN
+## 3. Admin password
 
-Default PIN: `hrcc2026` — change `ADMIN_PIN` in `js/firebase-config.js`.
+Default password: `hrcc2026` — change `ADMIN_PASSWORD` in `js/firebase-config.js`.
 
 ## 4. Workflow
 

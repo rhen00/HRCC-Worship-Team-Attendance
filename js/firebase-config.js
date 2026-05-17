@@ -12,8 +12,8 @@ export const firebaseConfig = {
   appId: "1:881393297583:web:af51a9f5548094b1728c5a",
 };
 
-/** Simple PIN for admin access (change before production). */
-export const ADMIN_PIN = "hrcc2026";
+/** Admin password (change before production). */
+export const ADMIN_PASSWORD = "hrcc2026";
 
 /**
  * Public URL for the live site (check-in QR, admin poster).
