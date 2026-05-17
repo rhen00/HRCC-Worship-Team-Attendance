@@ -48,7 +48,6 @@ const memberName = document.getElementById("member-name");
 const memberRole = document.getElementById("member-role");
 const memberSection = document.getElementById("member-section");
 const memberIdInput = document.getElementById("member-id");
-const memberPaid = document.getElementById("member-paid");
 const memberFormTitle = document.getElementById("member-form-title");
 const btnGenId = document.getElementById("btn-gen-id");
 const btnCancelEdit = document.getElementById("btn-cancel-edit");
@@ -68,13 +67,6 @@ const penaltyStats = document.getElementById("penalty-stats");
 const penaltyList = document.getElementById("penalty-list");
 const penaltyEmpty = document.getElementById("penalty-empty");
 
-const qrOverlay = document.getElementById("qr-overlay");
-const qrMemberName = document.getElementById("qr-member-name");
-const qrMemberIdEl = document.getElementById("qr-member-id");
-const qrCanvasWrap = document.getElementById("qr-canvas-wrap");
-const btnDownloadQr = document.getElementById("btn-download-qr");
-const btnCloseQr = document.getElementById("btn-close-qr");
-
 const checkinQrWrap = document.getElementById("checkin-qr-wrap");
 const checkinQrUrlEl = document.getElementById("checkin-qr-url");
 const checkinQrLocalHint = document.getElementById("checkin-qr-local-hint");
@@ -85,7 +77,6 @@ const HISTORY_PAGE_SIZE = 5;
 
 let membersCache = [];
 let checkinQrCanvas = null;
-let currentQrCanvas = null;
 let attendanceCache = [];
 let memberHistoryRecords = [];
 let memberHistoryPage = 1;
@@ -333,7 +324,6 @@ function resetMemberForm() {
   memberFormTitle.textContent = "Add member";
   btnCancelEdit.classList.add("hidden");
   memberIdInput.readOnly = false;
-  if (memberPaid) memberPaid.value = "0";
 }
 
 btnCancelEdit.addEventListener("click", resetMemberForm);
@@ -351,7 +341,6 @@ memberForm.addEventListener("submit", async (e) => {
       role: memberRole.value,
       section: memberSection.value,
       memberID: memberIdInput.value,
-      amountPaid: memberPaid?.value ?? 0,
     };
     await saveMember(data, memberDocId.value || null);
     resetMemberForm();
@@ -633,7 +622,6 @@ function renderMembers() {
       </div>
       <div class="member-actions">
         <button type="button" class="btn btn-secondary btn-sm" data-history="${m.memberID}">History</button>
-        <button type="button" class="btn btn-secondary btn-sm" data-qr="${m.id}">QR</button>
         <button type="button" class="btn btn-ghost btn-sm" data-edit="${m.id}">Edit</button>
         <button type="button" class="btn btn-danger btn-sm" data-del="${m.id}">Del</button>
       </div>
@@ -645,12 +633,6 @@ function renderMembers() {
     btn.addEventListener("click", () => {
       selectMemberHistory(btn.dataset.history);
       document.getElementById("member-history-card")?.scrollIntoView({ behavior: "smooth" });
-    });
-  });
-  memberList.querySelectorAll("[data-qr]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const m = membersCache.find((x) => x.id === btn.dataset.qr);
-      if (m) showQrModal(m);
     });
   });
   memberList.querySelectorAll("[data-edit]").forEach((btn) => {
@@ -684,38 +666,10 @@ function startEditMember(m) {
   memberSection.value = m.section;
   memberIdInput.value = m.memberID;
   memberIdInput.readOnly = true;
-  if (memberPaid) memberPaid.value = String(m.amountPaid ?? 0);
   memberFormTitle.textContent = "Edit member";
   btnCancelEdit.classList.remove("hidden");
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
-
-async function showQrModal(member) {
-  qrMemberName.textContent = member.name;
-  qrMemberIdEl.textContent = member.memberID;
-  qrCanvasWrap.innerHTML = "";
-  currentQrCanvas = document.createElement("canvas");
-  qrCanvasWrap.appendChild(currentQrCanvas);
-  try {
-    await drawQRToCanvas(currentQrCanvas, member.memberID);
-    qrOverlay.classList.add("show");
-  } catch (err) {
-    alert(err.message || "Could not generate QR.");
-  }
-}
-
-btnCloseQr.addEventListener("click", () => qrOverlay.classList.remove("show"));
-qrOverlay.addEventListener("click", (e) => {
-  if (e.target === qrOverlay) qrOverlay.classList.remove("show");
-});
-
-btnDownloadQr.addEventListener("click", () => {
-  if (!currentQrCanvas) return;
-  const link = document.createElement("a");
-  link.download = `${qrMemberIdEl.textContent}-qr.png`;
-  link.href = currentQrCanvas.toDataURL("image/png");
-  link.click();
-});
 
 function populateMemberFilter() {
   const val = filterMember.value;

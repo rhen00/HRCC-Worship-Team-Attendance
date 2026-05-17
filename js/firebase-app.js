@@ -209,28 +209,33 @@ export async function saveMember(data, docId = null) {
   if (existing && existing.id !== docId) {
     throw new Error(`Member ID ${data.memberID} is already in use.`);
   }
-  const amountPaid = Math.max(0, Number(data.amountPaid) || 0);
   const payload = {
     name: data.name.trim(),
     role: data.role.trim(),
     section: data.section.trim(),
     memberID: data.memberID.trim().toUpperCase(),
-    amountPaid,
     updatedAt: serverTimestamp(),
   };
-  if (docId) {
-    const prevSnap = await getDoc(doc(db, MEMBERS, docId));
-    const prevPaid = prevSnap.exists() ? Number(prevSnap.data().amountPaid) || 0 : 0;
-    if (amountPaid !== prevPaid) {
+  if (data.amountPaid !== undefined) {
+    const amountPaid = Math.max(0, Number(data.amountPaid) || 0);
+    payload.amountPaid = amountPaid;
+    if (docId) {
+      const prevSnap = await getDoc(doc(db, MEMBERS, docId));
+      const prevPaid = prevSnap.exists() ? Number(prevSnap.data().amountPaid) || 0 : 0;
+      if (amountPaid !== prevPaid) {
+        payload.amountPaidUpdatedAt = serverTimestamp();
+        payload.amountPaidUpdatedAtMs = Date.now();
+      }
+    } else if (amountPaid > 0) {
       payload.amountPaidUpdatedAt = serverTimestamp();
       payload.amountPaidUpdatedAtMs = Date.now();
     }
+  } else if (!docId) {
+    payload.amountPaid = 0;
+  }
+  if (docId) {
     await setDoc(doc(db, MEMBERS, docId), payload, { merge: true });
     return docId;
-  }
-  if (amountPaid > 0) {
-    payload.amountPaidUpdatedAt = serverTimestamp();
-    payload.amountPaidUpdatedAtMs = Date.now();
   }
   payload.createdAt = serverTimestamp();
   const ref = await addDoc(collection(db, MEMBERS), payload);
