@@ -18,6 +18,7 @@ import {
 } from "./penalty.js";
 
 const SESSION_KEY = "hrcc_scanner_member";
+const CAMERA_PREF_KEY = "hrcc_scanner_camera_id";
 
 const viewLogin = document.getElementById("view-login");
 const viewScan = document.getElementById("view-scan");
@@ -38,6 +39,8 @@ const cameraPermissionError = document.getElementById("camera-permission-error")
 const cameraPermissionStatus = document.getElementById("camera-permission-status");
 const insecureBanner = document.getElementById("insecure-banner");
 const qrReaderEl = document.getElementById("qr-reader");
+const cameraPickerRow = document.getElementById("camera-picker-row");
+const cameraSelect = document.getElementById("camera-select");
 const btnScanAgain = document.getElementById("btn-scan-again");
 const btnSignOut = document.getElementById("btn-sign-out");
 
@@ -51,6 +54,8 @@ const btnDismiss = document.getElementById("feedback-dismiss");
 
 let scanner = null;
 let scanning = false;
+let availableCameras = [];
+let cameraSwitching = false;
 let processing = false;
 let lastScanned = "";
 let currentMember = null;
@@ -336,6 +341,7 @@ function showCameraPermissionUi() {
   if (cameraPermissionPanel) cameraPermissionPanel.classList.remove("hidden");
   if (qrReaderEl) qrReaderEl.classList.add("qr-reader-hidden");
   if (btnToggle) btnToggle.classList.add("hidden");
+  if (availableCameras.length > 0) showCameraPickerRow(true);
   if (cameraPermissionError) cameraPermissionError.classList.add("hidden");
   if (btnRequestCamera) {
     btnRequestCamera.disabled = false;
@@ -355,31 +361,104 @@ function revealScannerViewport() {
   if (qrReaderEl) qrReaderEl.classList.remove("qr-reader-hidden");
 }
 
-/** Use the browser's default camera (first in the device list). */
-async function getDefaultCameraIds() {
-  const Lib = window.Html5Qrcode;
-  if (!Lib?.getCameras) return [];
-  try {
-    const cameras = await Lib.getCameras();
-    return (cameras || []).map((c) => c.id);
-  } catch {
-    return [];
+function friendlyCameraName(camera, index) {
+  const label = (camera.label || "").trim();
+  if (/back|rear|environment/i.test(label)) return label || `Back camera (${index + 1})`;
+  if (/front|user|face|selfie/i.test(label)) return label || `Front camera (${index + 1})`;
+  return label || `Camera ${index + 1}`;
+}
+
+function showCameraPickerRow(show) {
+  if (!cameraPickerRow) return;
+  cameraPickerRow.classList.toggle("hidden", !show);
+}
+
+function getSelectedCameraId() {
+  const fromSelect = cameraSelect?.value;
+  if (fromSelect) return fromSelect;
+  const saved = sessionStorage.getItem(CAMERA_PREF_KEY);
+  return saved || null;
+}
+
+function syncCameraSelectValue(cameraId) {
+  if (!cameraSelect || !cameraId) return;
+  if ([...cameraSelect.options].some((o) => o.value === cameraId)) {
+    cameraSelect.value = cameraId;
   }
 }
 
-async function startScannerWithDefaultCamera(html5, config) {
+async function loadCameraList() {
+  if (!cameraSelect) return;
+
+  const Lib = window.Html5Qrcode;
+  if (!Lib?.getCameras) {
+    cameraSelect.innerHTML = '<option value="">Default camera</option>';
+    cameraSelect.disabled = true;
+    showCameraPickerRow(false);
+    return;
+  }
+
+  cameraSelect.disabled = true;
+  cameraSelect.innerHTML = '<option value="">Loading cameras…</option>';
+
+  try {
+    availableCameras = (await Lib.getCameras()) || [];
+    cameraSelect.innerHTML = "";
+
+    if (!availableCameras.length) {
+      cameraSelect.innerHTML = '<option value="">Default camera</option>';
+      cameraSelect.disabled = true;
+      showCameraPickerRow(false);
+      return;
+    }
+
+    for (let i = 0; i < availableCameras.length; i++) {
+      const c = availableCameras[i];
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = friendlyCameraName(c, i);
+      cameraSelect.appendChild(opt);
+    }
+
+    const saved = sessionStorage.getItem(CAMERA_PREF_KEY);
+    const pick =
+      saved && availableCameras.some((c) => c.id === saved) ? saved : availableCameras[0].id;
+    cameraSelect.value = pick;
+    cameraSelect.disabled = availableCameras.length <= 1;
+    showCameraPickerRow(true);
+  } catch (err) {
+    console.warn("Could not list cameras:", err);
+    cameraSelect.innerHTML = '<option value="">Default camera</option>';
+    cameraSelect.disabled = true;
+    showCameraPickerRow(false);
+  }
+}
+
+async function startScannerWithCameraId(html5, config, preferredId) {
   const onScan = (t) => handleScan(t);
   const onError = () => {};
-  const cameraIds = await getDefaultCameraIds();
+
+  if (preferredId) {
+    try {
+      await html5.start(preferredId, config, onScan, onError);
+      sessionStorage.setItem(CAMERA_PREF_KEY, preferredId);
+      syncCameraSelectValue(preferredId);
+      return;
+    } catch (e) {
+      console.warn("Selected camera failed:", preferredId, e);
+    }
+  }
 
   let lastErr;
-  for (const id of cameraIds) {
+  for (const c of availableCameras) {
     try {
-      await html5.start(id, config, onScan, onError);
+      await html5.start(c.id, config, onScan, onError);
+      sessionStorage.setItem(CAMERA_PREF_KEY, c.id);
+      syncCameraSelectValue(c.id);
       return;
     } catch (e) {
       lastErr = e;
-      console.warn("Camera failed:", id, e);
+      console.warn("Camera failed:", c.id, e);
     }
   }
 
@@ -391,6 +470,46 @@ async function startScannerWithDefaultCamera(html5, config) {
   }
 
   throw lastErr || new Error("Could not start the camera.");
+}
+
+const SCANNER_CONFIG = { fps: 10, qrbox: { width: 260, height: 260 }, aspectRatio: 1.0 };
+
+async function restartScannerWithSelectedCamera() {
+  if (!currentMember || cameraSwitching) return;
+  const cameraId = getSelectedCameraId();
+  if (!cameraId) return;
+
+  cameraSwitching = true;
+  sessionStorage.setItem(CAMERA_PREF_KEY, cameraId);
+
+  try {
+    if (scanner && scanning) {
+      try {
+        await scanner.stop();
+        scanner.clear();
+      } catch (_) {}
+      scanning = false;
+    }
+
+    if (!window.Html5Qrcode) return;
+
+    revealScannerViewport();
+    if (cameraPermissionPanel) cameraPermissionPanel.classList.add("hidden");
+
+    scanner = new Html5Qrcode("qr-reader");
+    await startScannerWithCameraId(scanner, SCANNER_CONFIG, cameraId);
+    scanning = true;
+    showCameraActiveUi();
+  } catch (err) {
+    console.error(err);
+    showCameraPermissionUi();
+    if (cameraPermissionError) {
+      cameraPermissionError.textContent = cameraErrorMessage(err);
+      cameraPermissionError.classList.remove("hidden");
+    }
+  } finally {
+    cameraSwitching = false;
+  }
 }
 
 async function startScanner() {
@@ -420,7 +539,6 @@ async function startScanner() {
   }
 
   scanner = new Html5Qrcode("qr-reader");
-  const config = { fps: 10, qrbox: { width: 260, height: 260 }, aspectRatio: 1.0 };
 
   try {
     if (btnRequestCamera) {
@@ -431,7 +549,9 @@ async function startScanner() {
     revealScannerViewport();
     if (cameraPermissionPanel) cameraPermissionPanel.classList.add("hidden");
 
-    await startScannerWithDefaultCamera(scanner, config);
+    await loadCameraList();
+    const cameraId = getSelectedCameraId();
+    await startScannerWithCameraId(scanner, SCANNER_CONFIG, cameraId);
 
     scanning = true;
     showCameraActiveUi();
@@ -460,6 +580,7 @@ async function allowCameraAndScan() {
   const state = await getCameraPermissionState();
   if (state === "granted") {
     setPermissionStatus("Camera already allowed. Opening scanner…");
+    await loadCameraList();
     await startScanner();
     return;
   }
@@ -471,6 +592,7 @@ async function allowCameraAndScan() {
 
   try {
     await requestCameraPermission();
+    await loadCameraList();
     await startScanner();
     setPermissionStatus("");
   } catch (err) {
@@ -570,6 +692,12 @@ btnScanAgain?.addEventListener("click", async () => {
 });
 
 btnRequestCamera?.addEventListener("click", () => allowCameraAndScan());
+
+cameraSelect?.addEventListener("change", () => {
+  const id = cameraSelect.value;
+  if (id) sessionStorage.setItem(CAMERA_PREF_KEY, id);
+  if (scanning) void restartScannerWithSelectedCamera();
+});
 
 btnManualCheckin?.addEventListener("click", () => {
   const code = manualQrInput?.value?.trim() || VENUE_CHECKIN_CODE;

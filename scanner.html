@@ -63,6 +63,13 @@
         <p id="scan-member-label">Welcome</p>
       </header>
 
+      <div id="camera-picker-row" class="camera-picker-row hidden">
+        <label for="camera-select">Camera</label>
+        <select id="camera-select" aria-label="Choose camera">
+          <option value="">Loading cameras…</option>
+        </select>
+      </div>
+
       <div class="scanner-viewport">
         <div id="camera-permission-panel" class="camera-permission-panel">
           <div class="camera-permission-icon" aria-hidden="true">📷</div>
@@ -108,7 +115,8 @@
 
       <div class="scanner-controls">
         <p class="scanner-hint" id="scan-hint">
-          Point at the <strong>church check-in QR</strong> or your personal member QR.
+          Point at the <strong>church check-in QR</strong> or your personal member QR. Use the
+          <strong>Camera</strong> menu above to switch cameras.
         </p>
         <button type="button" id="btn-toggle-scan" class="btn btn-secondary hidden">Stop camera</button>
       </div>
