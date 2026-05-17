@@ -1,50 +1,44 @@
 # Use on phone (HTTPS required)
 
-**Why PC works but phone does not:** On PC you use `http://localhost:8080` — browsers allow the camera there. On a phone, `http://192.168.x.x:8080` is **not** secure, so the **camera is blocked**. You need **HTTPS**.
+**Live site (GitHub Pages):**  
+https://rhen00.github.io/HRCC-Worship-Team-Attendance/
 
-## Option A — Firebase Hosting (recommended for Sunday)
+**Scanner (bookmark this on phones):**  
+https://rhen00.github.io/HRCC-Worship-Team-Attendance/scanner.html
 
-1. Install Firebase CLI (one time):
-   ```bash
-   npm install -g firebase-tools
-   firebase login
-   ```
-2. In this folder, double-click **`deploy-hosting.bat`** or run:
-   ```bash
-   firebase deploy --only hosting
-   ```
-3. On the phone, open:
-   ```
-   https://hrcc-worship-team-attendance.web.app
-   ```
-4. Add to home screen (optional): Share → Add to Home Screen.
+**Why PC works but phone does not on Wi‑Fi:** `http://192.168.x.x:8080` is **not** secure — the **camera is blocked**. Use the **https://** link above.
 
-`js/firebase-config.js` already sets `APP_BASE_URL` to this URL so the admin **Check-in QR** is correct after deploy.
+## Deploy updates to GitHub Pages
 
-## Option B — Quick test without deploying
+1. Push changes to the `main` branch on GitHub.
+2. **Actions** tab → wait for **Deploy static content to Pages** to finish (1–2 minutes).
+3. Hard-refresh the site on your phone.
 
-On the scan screen, use **Testing without camera** → type `HRCC-CHECKIN` → **Check in**.  
-Works on any URL; no camera needed.
+`js/firebase-config.js` sets `APP_BASE_URL` to the GitHub Pages URL so **Admin → Check-in QR** points to the right scanner page.
 
-## Option C — Temporary HTTPS tunnel (dev only)
+## Firebase (required once)
 
-With PC server running on port 8080:
-```bash
-npx ngrok http 8080
-```
-Open the `https://....ngrok.io` link on your phone.
+1. [Firebase Console](https://console.firebase.google.com/) → project **hrcc-worship-team-attendance**
+2. **Authentication** → **Settings** → **Authorized domains** → **Add domain**
+3. Add: `rhen00.github.io`
+4. Enable **Anonymous** sign-in under **Sign-in method**
 
-## After deploying
+Without `rhen00.github.io` in authorized domains, login and check-in will fail on the live site.
 
-1. Firebase Console → **Authentication** → **Settings** → **Authorized domains**  
-   Ensure `hrcc-worship-team-attendance.web.app` is listed (added automatically with Hosting).
-2. Re-open **Admin → Check-in QR** and re-download the poster QR if you changed `APP_BASE_URL`.
+## Quick test without camera
+
+On the scan screen: **Testing without camera** → type `HRCC-CHECKIN` → **Check in**.
+
+## PC local test
+
+Double-click **`start-test.bat`** → `http://localhost:8080`  
+(Camera works on localhost only; use GitHub Pages link on phones.)
 
 ## Phone checklist
 
 | Step | Action |
 |------|--------|
-| 1 | Open **https** link (not `192.168...`) |
+| 1 | Open the **https** GitHub Pages link (not `192.168...`) |
 | 2 | Sign in with name + member ID |
 | 3 | Allow camera when prompted |
 | 4 | Scan door QR or use manual `HRCC-CHECKIN` |

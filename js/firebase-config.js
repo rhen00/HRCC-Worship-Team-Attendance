@@ -16,11 +16,11 @@ export const firebaseConfig = {
 export const ADMIN_PIN = "hrcc2026";
 
 /**
- * Public URL for the check-in QR (Firebase Hosting or your domain).
- * Example: "https://hrcc-worship-team-attendance.web.app"
- * Leave empty to use the current host (localhost / LAN testing).
+ * Public URL for the live site (check-in QR, admin poster).
+ * GitHub Pages: https://rhen00.github.io/HRCC-Worship-Team-Attendance
+ * Leave empty to use the current host (localhost / LAN testing only).
  */
-export const APP_BASE_URL = "";
+export const APP_BASE_URL = "https://rhen00.github.io/HRCC-Worship-Team-Attendance";
 
 /** QR code on the door poster — members scan this after logging in. */
 export const VENUE_CHECKIN_CODE = "HRCC-CHECKIN";

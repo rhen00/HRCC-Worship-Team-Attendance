@@ -277,7 +277,7 @@ function cameraErrorMessage(err) {
     if (info.needsLocalhost) {
       return `${info.hint} Open ${info.testUrl} or use manual check-in below.`;
     }
-    return "Camera requires HTTPS. On your phone, open https://hrcc-worship-team-attendance.web.app (not http://192.168…).";
+    return "Camera requires HTTPS. Open https://rhen00.github.io/HRCC-Worship-Team-Attendance/scanner.html (not http://192.168…).";
   }
   const info = getConnectionInfo();
   if (info.needsLocalhost) {
@@ -321,28 +321,15 @@ async function requestCameraPermission() {
   setPermissionStatus("Waiting for permission… Choose Allow in the popup.");
   revealScannerViewport();
 
-  const tryConstraints = [
-    { video: { facingMode: { ideal: "environment" } }, audio: false },
-    { video: { facingMode: "user" }, audio: false },
-    { video: true, audio: false },
-  ];
-
-  let lastErr;
-  for (const constraints of tryConstraints) {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      stream.getTracks().forEach((track) => track.stop());
-      await new Promise((r) => setTimeout(r, 150));
-      setPermissionStatus("Camera allowed. Starting scanner…");
-      return;
-    } catch (err) {
-      lastErr = err;
-      if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") break;
-    }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    stream.getTracks().forEach((track) => track.stop());
+    await new Promise((r) => setTimeout(r, 150));
+    setPermissionStatus("Camera allowed. Starting scanner…");
+  } catch (err) {
+    setPermissionStatus("", false);
+    throw err;
   }
-
-  setPermissionStatus("", false);
-  throw lastErr || new Error("Could not access the camera.");
 }
 
 function showCameraPermissionUi() {
@@ -368,66 +355,42 @@ function revealScannerViewport() {
   if (qrReaderEl) qrReaderEl.classList.remove("qr-reader-hidden");
 }
 
-async function pickCameraStartConfig() {
+/** Use the browser's default camera (first in the device list). */
+async function getDefaultCameraIds() {
   const Lib = window.Html5Qrcode;
-  if (!Lib?.getCameras) {
-    return { constraints: [{ facingMode: "environment" }, { facingMode: "user" }] };
-  }
+  if (!Lib?.getCameras) return [];
   try {
     const cameras = await Lib.getCameras();
-    if (!cameras?.length) return { facingMode: "user" };
-
-    const back =
-      cameras.find((c) => /back|rear|environment/i.test(c.label || "")) ||
-      cameras[cameras.length - 1];
-    const front = cameras.find((c) => /front|user|face/i.test(c.label || "")) || cameras[0];
-
-    return {
-      primary: back.id,
-      fallbacks: [
-        front.id,
-        ...cameras.map((c) => c.id).filter((id) => id !== back.id && id !== front.id),
-      ],
-      constraints: [{ facingMode: "environment" }, { facingMode: "user" }],
-    };
+    return (cameras || []).map((c) => c.id);
   } catch {
-    return { constraints: [{ facingMode: "environment" }, { facingMode: "user" }] };
+    return [];
   }
 }
 
-async function startScannerWithConfig(html5, config, scanConfig) {
+async function startScannerWithDefaultCamera(html5, config) {
   const onScan = (t) => handleScan(t);
   const onError = () => {};
+  const cameraIds = await getDefaultCameraIds();
 
-  if (scanConfig.primary) {
-    try {
-      await html5.start(scanConfig.primary, config, onScan, onError);
-      return;
-    } catch (e) {
-      console.warn("Preferred camera failed:", e);
-    }
-    for (const id of scanConfig.fallbacks || []) {
-      try {
-        await html5.start(id, config, onScan, onError);
-        return;
-      } catch (e) {
-        console.warn("Camera fallback failed:", id, e);
-      }
-    }
-  }
-
-  const constraints = scanConfig.constraints || [{ facingMode: "environment" }, { facingMode: "user" }];
   let lastErr;
-  for (const cam of constraints) {
+  for (const id of cameraIds) {
     try {
-      await html5.start(cam, config, onScan, onError);
+      await html5.start(id, config, onScan, onError);
       return;
     } catch (e) {
       lastErr = e;
-      console.warn("facingMode failed:", cam, e);
+      console.warn("Camera failed:", id, e);
     }
   }
-  throw lastErr || new Error("Could not start any camera.");
+
+  try {
+    await html5.start(true, config, onScan, onError);
+    return;
+  } catch (e) {
+    lastErr = e;
+  }
+
+  throw lastErr || new Error("Could not start the camera.");
 }
 
 async function startScanner() {
@@ -468,8 +431,7 @@ async function startScanner() {
     revealScannerViewport();
     if (cameraPermissionPanel) cameraPermissionPanel.classList.add("hidden");
 
-    const scanConfig = await pickCameraStartConfig();
-    await startScannerWithConfig(scanner, config, scanConfig);
+    await startScannerWithDefaultCamera(scanner, config);
 
     scanning = true;
     showCameraActiveUi();
