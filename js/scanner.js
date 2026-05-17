@@ -262,6 +262,7 @@ async function handleScan(decodedText) {
 
 function cameraErrorMessage(err) {
   const name = err?.name || "";
+  const msg = String(err?.message || "");
   if (name === "NotAllowedError" || name === "PermissionDeniedError") {
     return "Camera was blocked. Allow camera in browser settings, then tap Ask permission to open camera again.";
   }
@@ -271,11 +272,18 @@ function cameraErrorMessage(err) {
   if (name === "NotReadableError" || name === "TrackStartError") {
     return "Camera is in use by another app. Close other apps using the camera and try again.";
   }
+  if (/secure|https|insecure/i.test(msg) || !window.isSecureContext) {
+    const info = getConnectionInfo();
+    if (info.needsLocalhost) {
+      return `${info.hint} Open ${info.testUrl} or use manual check-in below.`;
+    }
+    return "Camera requires HTTPS. On your phone, open https://hrcc-worship-team-attendance.web.app (not http://192.168…).";
+  }
   const info = getConnectionInfo();
   if (info.needsLocalhost) {
     return `${info.hint} Open ${info.testUrl} or use manual check-in below.`;
   }
-  return err?.message || "Could not access the camera.";
+  return msg || "Could not access the camera. Tap Ask permission again.";
 }
 
 async function getCameraPermissionState() {
@@ -300,10 +308,10 @@ function setPermissionStatus(message, isError = false) {
   cameraPermissionStatus.classList.remove("hidden");
 }
 
-/** Triggers the browser's native camera permission dialog. */
+/** Triggers the browser's native camera permission dialog (optional warm-up). */
 async function requestCameraPermission() {
   const info = getConnectionInfo();
-  if (info.needsLocalhost && window.location.protocol === "file:") {
+  if (info.needsLocalhost) {
     throw new Error(`${info.hint} Open ${info.testUrl}`);
   }
   if (!navigator.mediaDevices?.getUserMedia) {
@@ -311,21 +319,30 @@ async function requestCameraPermission() {
   }
 
   setPermissionStatus("Waiting for permission… Choose Allow in the popup.");
+  revealScannerViewport();
 
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" } },
-      audio: false,
-    });
-    stream.getTracks().forEach((track) => track.stop());
-    setPermissionStatus("Camera allowed. Starting scanner…");
-  } catch (err) {
-    setPermissionStatus("", false);
-    if (!window.isSecureContext && info.needsLocalhost) {
-      throw new Error(`${info.hint} Open ${info.testUrl}`);
+  const tryConstraints = [
+    { video: { facingMode: { ideal: "environment" } }, audio: false },
+    { video: { facingMode: "user" }, audio: false },
+    { video: true, audio: false },
+  ];
+
+  let lastErr;
+  for (const constraints of tryConstraints) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      stream.getTracks().forEach((track) => track.stop());
+      await new Promise((r) => setTimeout(r, 150));
+      setPermissionStatus("Camera allowed. Starting scanner…");
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") break;
     }
-    throw err;
   }
+
+  setPermissionStatus("", false);
+  throw lastErr || new Error("Could not access the camera.");
 }
 
 function showCameraPermissionUi() {
@@ -346,11 +363,89 @@ function showCameraActiveUi() {
   if (btnToggle) btnToggle.classList.remove("hidden");
 }
 
+/** Camera must not be started inside display:none — browsers block it. */
+function revealScannerViewport() {
+  if (qrReaderEl) qrReaderEl.classList.remove("qr-reader-hidden");
+}
+
+async function pickCameraStartConfig() {
+  const Lib = window.Html5Qrcode;
+  if (!Lib?.getCameras) {
+    return { constraints: [{ facingMode: "environment" }, { facingMode: "user" }] };
+  }
+  try {
+    const cameras = await Lib.getCameras();
+    if (!cameras?.length) return { facingMode: "user" };
+
+    const back =
+      cameras.find((c) => /back|rear|environment/i.test(c.label || "")) ||
+      cameras[cameras.length - 1];
+    const front = cameras.find((c) => /front|user|face/i.test(c.label || "")) || cameras[0];
+
+    return {
+      primary: back.id,
+      fallbacks: [
+        front.id,
+        ...cameras.map((c) => c.id).filter((id) => id !== back.id && id !== front.id),
+      ],
+      constraints: [{ facingMode: "environment" }, { facingMode: "user" }],
+    };
+  } catch {
+    return { constraints: [{ facingMode: "environment" }, { facingMode: "user" }] };
+  }
+}
+
+async function startScannerWithConfig(html5, config, scanConfig) {
+  const onScan = (t) => handleScan(t);
+  const onError = () => {};
+
+  if (scanConfig.primary) {
+    try {
+      await html5.start(scanConfig.primary, config, onScan, onError);
+      return;
+    } catch (e) {
+      console.warn("Preferred camera failed:", e);
+    }
+    for (const id of scanConfig.fallbacks || []) {
+      try {
+        await html5.start(id, config, onScan, onError);
+        return;
+      } catch (e) {
+        console.warn("Camera fallback failed:", id, e);
+      }
+    }
+  }
+
+  const constraints = scanConfig.constraints || [{ facingMode: "environment" }, { facingMode: "user" }];
+  let lastErr;
+  for (const cam of constraints) {
+    try {
+      await html5.start(cam, config, onScan, onError);
+      return;
+    } catch (e) {
+      lastErr = e;
+      console.warn("facingMode failed:", cam, e);
+    }
+  }
+  throw lastErr || new Error("Could not start any camera.");
+}
+
 async function startScanner() {
   if (scanning || !currentMember) return;
 
   if (!window.Html5Qrcode) {
-    showFeedback("error", "Scanner unavailable", "QR scanner library failed to load.");
+    showFeedback("error", "Scanner unavailable", "QR scanner library failed to load. Check your internet connection.");
+    return;
+  }
+
+  const info = getConnectionInfo();
+  if (info.needsLocalhost) {
+    showCameraPermissionUi();
+    const msg = `${info.hint} Open ${info.testUrl}`;
+    if (cameraPermissionError) {
+      cameraPermissionError.textContent = msg;
+      cameraPermissionError.classList.remove("hidden");
+    }
     return;
   }
 
@@ -362,14 +457,20 @@ async function startScanner() {
   }
 
   scanner = new Html5Qrcode("qr-reader");
-  const config = { fps: 10, qrbox: { width: 260, height: 260 }, aspectRatio: 1 };
+  const config = { fps: 10, qrbox: { width: 260, height: 260 }, aspectRatio: 1.0 };
 
   try {
     if (btnRequestCamera) {
       btnRequestCamera.disabled = true;
       btnRequestCamera.textContent = "Starting camera…";
     }
-    await scanner.start({ facingMode: "environment" }, config, (t) => handleScan(t), () => {});
+
+    revealScannerViewport();
+    if (cameraPermissionPanel) cameraPermissionPanel.classList.add("hidden");
+
+    const scanConfig = await pickCameraStartConfig();
+    await startScannerWithConfig(scanner, config, scanConfig);
+
     scanning = true;
     showCameraActiveUi();
     if (btnToggle) btnToggle.disabled = false;
