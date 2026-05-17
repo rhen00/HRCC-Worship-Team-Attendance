@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f1419" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>HRCC Worship Team Attendance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/app.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>HRCC Worship Team</h1>
+      <p>Sunday attendance &amp; penalty tracking</p>
+    </header>
+
+    <main class="container">
+      <div id="config-banner" class="config-banner hidden">
+        Firebase is not configured yet. Edit <code>js/firebase-config.js</code> with your project keys.
+      </div>
+
+      <section class="card hero-card">
+        <div class="hero-icon">🎵</div>
+        <h2 style="margin: 0 0 0.5rem">Welcome</h2>
+        <p style="margin: 0; color: var(--text-muted); font-size: 0.9rem">
+          Scan QR codes at the door or manage members in admin mode.
+        </p>
+      </section>
+
+      <nav class="nav-grid">
+        <a href="scanner.html" class="nav-tile">
+          <span class="icon">📷</span>
+          <div>
+            <div class="label">Scan QR</div>
+            <div class="desc">Sign in, scan door QR, view your history</div>
+          </div>
+        </a>
+        <a href="admin.html" class="nav-tile">
+          <span class="icon">⚙️</span>
+          <div>
+            <div class="label">Admin</div>
+            <div class="desc">Members, QR codes, reports &amp; export</div>
+          </div>
+        </a>
+      </nav>
+
+      <section class="card" style="margin-top: 1.5rem">
+        <h2>Penalty rules (Sunday)</h2>
+        <ul id="home-rules-list" style="margin: 0; padding-left: 1.1rem; font-size: 0.9rem; color: var(--text-muted)">
+          <li>Loading rules…</li>
+        </ul>
+        <p style="margin: 0.75rem 0 0; font-size: 0.8rem; color: var(--text-muted)">
+          <strong>Testing on PC?</strong> Double-click <code>start-test.bat</code> then open
+          <code>http://localhost:8080</code>
+        </p>
+      </section>
+    </main>
+
+    <script type="module">
+      import { isFirebaseConfigured, loadPenaltyRules } from "./js/firebase-app.js";
+      import { formatRulesSummaryHtml, getDefaultPenaltyRules } from "./js/penalty.js";
+
+      const rulesList = document.getElementById("home-rules-list");
+      if (!isFirebaseConfigured()) {
+        document.getElementById("config-banner").classList.remove("hidden");
+        if (rulesList) rulesList.innerHTML = formatRulesSummaryHtml(getDefaultPenaltyRules());
+      } else {
+        loadPenaltyRules()
+          .then((rules) => {
+            if (rulesList) rulesList.innerHTML = formatRulesSummaryHtml(rules);
+          })
+          .catch(() => {
+            if (rulesList) rulesList.innerHTML = formatRulesSummaryHtml(getDefaultPenaltyRules());
+          });
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f1419" />
+    <title>Admin — HRCC Worship</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/app.css" />
+  </head>
+  <body>
+    <div id="pin-gate" class="container pin-gate">
+      <section class="card">
+        <h2 style="margin-top: 0">Admin access</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem">Enter the admin PIN to continue.</p>
+        <form id="pin-form">
+          <div class="form-group">
+            <label for="pin-input">PIN</label>
+            <input id="pin-input" type="password" inputmode="numeric" autocomplete="off" required />
+          </div>
+          <button type="submit" class="btn btn-primary">Unlock</button>
+        </form>
+        <p id="pin-error" class="hidden" style="color: var(--danger); font-size: 0.85rem; margin-top: 0.75rem">
+          Incorrect PIN
+        </p>
+      </section>
+      <a href="index.html" class="back-link">← Back to home</a>
+    </div>
+
+    <div id="admin-app" class="hidden">
+      <header class="app-header">
+        <a href="index.html" class="back-link">← Home</a>
+        <h1>Admin</h1>
+        <p>Members, attendance &amp; penalties</p>
+      </header>
+
+      <main class="container wide">
+        <div id="config-banner" class="config-banner hidden">
+          Configure Firebase in <code>js/firebase-config.js</code> to use admin features.
+        </div>
+
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab active" data-tab="members">Members</button>
+          <button type="button" class="tab" data-tab="checkin-qr">Check-in QR</button>
+          <button type="button" class="tab" data-tab="attendance">Attendance</button>
+          <button type="button" class="tab" data-tab="penalties">Penalties</button>
+          <button type="button" class="tab" data-tab="rules">Rules</button>
+          <button type="button" class="tab" data-tab="reports">Reports</button>
+        </div>
+
+        <section id="panel-members" class="panel active">
+          <section class="card">
+            <h2 id="member-form-title">Add member</h2>
+            <form id="member-form">
+              <input type="hidden" id="member-doc-id" />
+              <div class="form-group">
+                <label for="member-name">Full name</label>
+                <input id="member-name" required placeholder="Juan Dela Cruz" />
+              </div>
+              <div class="form-row two-col">
+                <div class="form-group">
+                  <label for="member-role">Role</label>
+                  <select id="member-role" required>
+                    <option value="">Select role</option>
+                    <option>Vocals</option>
+                    <option>Band</option>
+                    <option>Media</option>
+                    <option>Sound</option>
+                    <option>Worship Leader</option>
+                    <option>Other</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="member-section">Section</label>
+                  <input id="member-section" required placeholder="e.g. Main" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="member-paid">Amount paid (₱)</label>
+                <input id="member-paid" type="number" min="0" step="1" value="0" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label for="member-id">Member ID</label>
+                <div style="display: flex; gap: 0.5rem">
+                  <input id="member-id" required placeholder="HRCC-001" style="flex: 1" />
+                  <button type="button" id="btn-gen-id" class="btn btn-secondary btn-sm" style="width: auto">
+                    Generate
+                  </button>
+                </div>
+              </div>
+              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap">
+                <button type="submit" class="btn btn-primary" style="flex: 1">Save member</button>
+                <button type="button" id="btn-cancel-edit" class="btn btn-ghost hidden">Cancel</button>
+              </div>
+            </form>
+          </section>
+
+          <section class="card">
+            <h2>Team members</h2>
+            <div id="members-loading" class="loading hidden">
+              <div class="spinner"></div>
+              Loading…
+            </div>
+            <ul id="member-list" class="member-list"></ul>
+            <p id="members-empty" class="empty-state hidden">No members yet. Add your first member above.</p>
+          </section>
+
+          <section class="card" id="member-history-card">
+            <h2>Member attendance history</h2>
+            <p class="admin-hint">Tap <strong>Edit</strong> on any record to change check-in time or penalty (e.g. ₱30 → ₱50).</p>
+            <div class="form-group">
+              <label for="history-member-select">Select member</label>
+              <select id="history-member-select">
+                <option value="">Choose a member…</option>
+              </select>
+            </div>
+            <div id="member-history-summary" class="member-history-summary hidden"></div>
+            <ul id="member-history-list" class="history-list"></ul>
+            <p id="member-history-empty" class="empty-state hidden">No attendance records for this member.</p>
+            <p id="member-history-loading" class="loading hidden">Loading history…</p>
+            <div id="member-history-pagination" class="pagination hidden">
+              <button type="button" id="history-prev" class="btn btn-secondary btn-sm" disabled>Previous</button>
+              <span id="history-page-info" class="pagination-info">Page 1 of 1</span>
+              <button type="button" id="history-next" class="btn btn-secondary btn-sm" disabled>Next</button>
+            </div>
+          </section>
+        </section>
+
+        <section id="panel-checkin-qr" class="panel">
+          <section class="card checkin-qr-card">
+            <h2>Sunday check-in QR</h2>
+            <p class="checkin-qr-desc">
+              Print this at the door. Members sign in on their phone (name + ID), then scan this QR to check in.
+            </p>
+            <div id="checkin-qr-wrap" class="checkin-qr-wrap"></div>
+            <p id="checkin-qr-url" class="checkin-qr-url"></p>
+            <p id="checkin-qr-local-hint" class="checkin-qr-hint hidden"></p>
+            <div class="checkin-qr-actions">
+              <button type="button" id="btn-copy-checkin-url" class="btn btn-secondary btn-sm">Copy code &amp; link</button>
+              <button type="button" id="btn-download-checkin-qr" class="btn btn-primary btn-sm">Download QR</button>
+            </div>
+            <ol class="checkin-steps">
+              <li>Member opens <strong>Scan QR</strong> from the home page</li>
+              <li>Enters <strong>name</strong> and <strong>member ID</strong></li>
+              <li>Scans this door QR → sees attendance history &amp; balance</li>
+            </ol>
+          </section>
+        </section>
+
+        <section id="panel-attendance" class="panel">
+          <section class="card">
+            <h2>Daily attendance</h2>
+            <p class="admin-hint">Use <strong>Edit</strong> on a row to adjust time or set a custom penalty.</p>
+            <div class="filters form-row two-col">
+              <div class="form-group" style="margin: 0">
+                <label for="filter-date">Date</label>
+                <input type="date" id="filter-date" />
+              </div>
+              <div class="form-group" style="margin: 0">
+                <label for="filter-member">Member</label>
+                <select id="filter-member">
+                  <option value="">All members</option>
+                </select>
+              </div>
+            </div>
+            <div class="stats-grid" id="attendance-stats"></div>
+            <button type="button" id="btn-export" class="btn btn-secondary btn-sm" style="width: auto; margin-bottom: 1rem">
+              Export CSV
+            </button>
+            <ul id="attendance-list" class="attendance-list"></ul>
+            <p id="attendance-empty" class="empty-state hidden">No attendance for this date.</p>
+          </section>
+        </section>
+
+        <section id="panel-rules" class="panel">
+          <section class="card">
+            <h2>Penalty rules (Sunday)</h2>
+            <p class="admin-hint">
+              Set the on-time cutoff, late cutoff, and penalty amounts (Manila time). New check-ins and
+              “Apply penalty from time” use these rules.
+            </p>
+            <form id="rules-form">
+              <div class="form-row two-col">
+                <div class="form-group">
+                  <label for="rule-ontime-end">On time until</label>
+                  <input type="time" id="rule-ontime-end" step="1" required />
+                </div>
+                <div class="form-group">
+                  <label for="rule-late-end">Late until (after = very late)</label>
+                  <input type="time" id="rule-late-end" step="1" required />
+                </div>
+              </div>
+              <div class="form-row three-col">
+                <div class="form-group">
+                  <label for="rule-penalty-ontime">Penalty if on time (₱)</label>
+                  <input type="number" id="rule-penalty-ontime" min="0" step="1" required />
+                </div>
+                <div class="form-group">
+                  <label for="rule-penalty-late">Penalty if late (₱)</label>
+                  <input type="number" id="rule-penalty-late" min="0" step="1" required />
+                </div>
+                <div class="form-group">
+                  <label for="rule-penalty-verylate">Penalty if very late (₱)</label>
+                  <input type="number" id="rule-penalty-verylate" min="0" step="1" required />
+                </div>
+              </div>
+              <div id="rules-preview" class="rules-preview-card"></div>
+              <p id="rules-error" class="hidden" style="color: var(--danger); font-size: 0.85rem"></p>
+              <p id="rules-saved" class="hidden" style="color: var(--success); font-size: 0.85rem"></p>
+              <button type="submit" class="btn btn-primary">Save rules</button>
+            </form>
+          </section>
+        </section>
+
+        <section id="panel-reports" class="panel">
+          <section class="card">
+            <h2>Collectible report</h2>
+            <p class="admin-hint">
+              Total still owed after member payments and per-Sunday “penalty paid” marks. Payment dates appear below
+              (new marks record the time; older paid rows may show “Date not recorded”).
+            </p>
+            <div id="reports-loading" class="loading hidden">Loading report…</div>
+            <div id="reports-summary" class="stats-grid reports-stats hidden"></div>
+            <div class="reports-export-row">
+              <button type="button" id="btn-export-collectible" class="btn btn-secondary btn-sm" style="width: auto">
+                Export collectible CSV
+              </button>
+              <button type="button" id="btn-export-payments" class="btn btn-secondary btn-sm" style="width: auto">
+                Export payments CSV
+              </button>
+            </div>
+            <h3 class="reports-subheading">Recent payments (all members)</h3>
+            <ul id="reports-payments-all" class="report-payments-list"></ul>
+            <p id="reports-payments-empty" class="empty-state hidden">No payments recorded yet.</p>
+            <h3 class="reports-subheading">By member</h3>
+            <ul id="reports-member-list" class="attendance-list"></ul>
+            <p id="reports-empty" class="empty-state hidden">No members yet.</p>
+          </section>
+        </section>
+
+        <section id="panel-penalties" class="panel">
+          <section class="card">
+            <h2>Penalty summary</h2>
+            <div class="form-group">
+              <label for="penalty-date">Date</label>
+              <input type="date" id="penalty-date" />
+            </div>
+            <div class="stats-grid" id="penalty-stats"></div>
+            <ul id="penalty-list" class="attendance-list"></ul>
+            <p id="penalty-empty" class="empty-state hidden">No penalties for this date.</p>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <div id="edit-att-overlay" class="overlay" aria-hidden="true">
+      <div class="feedback-card edit-att-modal" role="dialog" aria-labelledby="edit-att-title">
+        <h3 id="edit-att-title" style="margin: 0 0 0.25rem">Edit check-in</h3>
+        <p id="edit-att-meta" class="edit-att-meta"></p>
+        <p class="edit-att-hint">Change the time and/or type any penalty amount (e.g. change ₱30 to ₱50).</p>
+        <form id="edit-att-form">
+          <div class="form-group">
+            <label for="edit-att-time">Check-in time (Manila)</label>
+            <input type="datetime-local" id="edit-att-time" required step="1" />
+          </div>
+          <div class="form-group">
+            <label for="edit-att-penalty">Penalty (₱)</label>
+            <div id="edit-penalty-presets" class="penalty-presets" role="group" aria-label="Penalty presets"></div>
+            <input type="number" id="edit-att-penalty" min="0" step="1" required placeholder="e.g. 50" />
+            <p id="edit-att-penalty-preview" class="edit-att-preview"></p>
+            <label class="checkbox-row">
+              <input type="checkbox" id="edit-att-paid" />
+              <span>Penalty paid (still late — counts as settled, not collectible)</span>
+            </label>
+          </div>
+          <button type="button" id="btn-recalc-penalty" class="btn btn-secondary btn-sm" style="width: 100%; margin-bottom: 0.75rem">
+            Apply penalty from saved rules
+          </button>
+          <p id="edit-att-error" class="hidden" style="color: var(--danger); font-size: 0.85rem; margin: 0 0 0.75rem"></p>
+          <div class="edit-att-actions">
+            <button type="submit" class="btn btn-primary">Save changes</button>
+            <button type="button" id="btn-close-edit-att" class="btn btn-ghost">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="qr-overlay" class="overlay">
+      <div class="feedback-card qr-modal" style="max-width: 360px">
+        <h3 id="qr-member-name" style="margin: 0 0 0.25rem"></h3>
+        <p class="qr-id" id="qr-member-id"></p>
+        <div id="qr-canvas-wrap"></div>
+        <button type="button" id="btn-download-qr" class="btn btn-secondary btn-sm">Download QR</button>
+        <button type="button" id="btn-close-qr" class="btn btn-ghost">Close</button>
+      </div>
+    </div>
+
+    <script type="module" src="js/admin.js"></script>
+  </body>
+</html>
