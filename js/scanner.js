@@ -19,6 +19,7 @@ import {
 
 const SESSION_KEY = "hrcc_scanner_member";
 const CAMERA_PREF_KEY = "hrcc_scanner_camera_id";
+const CAMERA_FACING_KEY = "hrcc_scanner_camera_facing";
 
 const viewLogin = document.getElementById("view-login");
 const viewScan = document.getElementById("view-scan");
@@ -40,7 +41,8 @@ const cameraPermissionStatus = document.getElementById("camera-permission-status
 const insecureBanner = document.getElementById("insecure-banner");
 const qrReaderEl = document.getElementById("qr-reader");
 const cameraPickerRow = document.getElementById("camera-picker-row");
-const cameraSelect = document.getElementById("camera-select");
+const btnCamBack = document.getElementById("btn-cam-back");
+const btnCamFront = document.getElementById("btn-cam-front");
 const btnScanAgain = document.getElementById("btn-scan-again");
 const btnSignOut = document.getElementById("btn-sign-out");
 
@@ -55,6 +57,7 @@ const btnDismiss = document.getElementById("feedback-dismiss");
 let scanner = null;
 let scanning = false;
 let availableCameras = [];
+let cameraFacingMap = { back: null, front: null };
 let cameraSwitching = false;
 let processing = false;
 let lastScanned = "";
@@ -361,11 +364,32 @@ function revealScannerViewport() {
   if (qrReaderEl) qrReaderEl.classList.remove("qr-reader-hidden");
 }
 
-function friendlyCameraName(camera, index) {
-  const label = (camera.label || "").trim();
-  if (/back|rear|environment/i.test(label)) return label || `Back camera (${index + 1})`;
-  if (/front|user|face|selfie/i.test(label)) return label || `Front camera (${index + 1})`;
-  return label || `Camera ${index + 1}`;
+function isBackCamera(camera) {
+  return /back|rear|environment/i.test(camera.label || "");
+}
+
+function isFrontCamera(camera) {
+  return /front|user|face|selfie/i.test(camera.label || "");
+}
+
+function buildCameraFacingMap(cameras) {
+  const map = { back: null, front: null };
+  if (!cameras?.length) return map;
+
+  for (const c of cameras) {
+    if (!map.back && isBackCamera(c)) map.back = c.id;
+    if (!map.front && isFrontCamera(c)) map.front = c.id;
+  }
+
+  if (cameras.length >= 2) {
+    if (!map.front) map.front = cameras[0].id;
+    if (!map.back) map.back = cameras[cameras.length - 1].id;
+  } else if (cameras.length === 1) {
+    map.back = cameras[0].id;
+    map.front = cameras[0].id;
+  }
+
+  return map;
 }
 
 function showCameraPickerRow(show) {
@@ -373,100 +397,105 @@ function showCameraPickerRow(show) {
   cameraPickerRow.classList.toggle("hidden", !show);
 }
 
-function getSelectedCameraId() {
-  const fromSelect = cameraSelect?.value;
-  if (fromSelect) return fromSelect;
-  const saved = sessionStorage.getItem(CAMERA_PREF_KEY);
-  return saved || null;
+function getSelectedFacing() {
+  const saved = sessionStorage.getItem(CAMERA_FACING_KEY);
+  if (saved === "front" || saved === "back") return saved;
+
+  const legacyId = sessionStorage.getItem(CAMERA_PREF_KEY);
+  if (legacyId && legacyId === cameraFacingMap.front) return "front";
+  if (legacyId && legacyId === cameraFacingMap.back) return "back";
+
+  return "back";
 }
 
-function syncCameraSelectValue(cameraId) {
-  if (!cameraSelect || !cameraId) return;
-  if ([...cameraSelect.options].some((o) => o.value === cameraId)) {
-    cameraSelect.value = cameraId;
-  }
+function setActiveFacingButton(facing) {
+  const isBack = facing !== "front";
+  btnCamBack?.classList.toggle("is-active", isBack);
+  btnCamFront?.classList.toggle("is-active", !isBack);
+  btnCamBack?.setAttribute("aria-pressed", String(isBack));
+  btnCamFront?.setAttribute("aria-pressed", String(!isBack));
+}
+
+function updateFacingButtons() {
+  if (btnCamBack) btnCamBack.disabled = !cameraFacingMap.back;
+  if (btnCamFront) btnCamFront.disabled = !cameraFacingMap.front;
+  setActiveFacingButton(getSelectedFacing());
+}
+
+function resolveCameraIdForFacing(facing) {
+  return facing === "front" ? cameraFacingMap.front : cameraFacingMap.back;
 }
 
 async function loadCameraList() {
-  if (!cameraSelect) return;
-
   const Lib = window.Html5Qrcode;
   if (!Lib?.getCameras) {
-    cameraSelect.innerHTML = '<option value="">Default camera</option>';
-    cameraSelect.disabled = true;
-    showCameraPickerRow(false);
+    cameraFacingMap = { back: null, front: null };
+    showCameraPickerRow(true);
+    updateFacingButtons();
     return;
   }
-
-  cameraSelect.disabled = true;
-  cameraSelect.innerHTML = '<option value="">Loading cameras…</option>';
 
   try {
     availableCameras = (await Lib.getCameras()) || [];
-    cameraSelect.innerHTML = "";
+    cameraFacingMap = buildCameraFacingMap(availableCameras);
 
-    if (!availableCameras.length) {
-      cameraSelect.innerHTML = '<option value="">Default camera</option>';
-      cameraSelect.disabled = true;
-      showCameraPickerRow(false);
-      return;
+    const legacyId = sessionStorage.getItem(CAMERA_PREF_KEY);
+    if (legacyId && !sessionStorage.getItem(CAMERA_FACING_KEY)) {
+      if (legacyId === cameraFacingMap.front) sessionStorage.setItem(CAMERA_FACING_KEY, "front");
+      else if (legacyId === cameraFacingMap.back) sessionStorage.setItem(CAMERA_FACING_KEY, "back");
     }
 
-    for (let i = 0; i < availableCameras.length; i++) {
-      const c = availableCameras[i];
-      const opt = document.createElement("option");
-      opt.value = c.id;
-      opt.textContent = friendlyCameraName(c, i);
-      cameraSelect.appendChild(opt);
-    }
-
-    const saved = sessionStorage.getItem(CAMERA_PREF_KEY);
-    const pick =
-      saved && availableCameras.some((c) => c.id === saved) ? saved : availableCameras[0].id;
-    cameraSelect.value = pick;
-    cameraSelect.disabled = availableCameras.length <= 1;
     showCameraPickerRow(true);
+    updateFacingButtons();
   } catch (err) {
     console.warn("Could not list cameras:", err);
-    cameraSelect.innerHTML = '<option value="">Default camera</option>';
-    cameraSelect.disabled = true;
-    showCameraPickerRow(false);
+    cameraFacingMap = { back: null, front: null };
+    showCameraPickerRow(true);
+    updateFacingButtons();
   }
 }
 
-async function startScannerWithCameraId(html5, config, preferredId) {
+async function startScannerWithFacing(html5, config, facing) {
   const onScan = (t) => handleScan(t);
   const onError = () => {};
-
-  if (preferredId) {
-    try {
-      await html5.start(preferredId, config, onScan, onError);
-      sessionStorage.setItem(CAMERA_PREF_KEY, preferredId);
-      syncCameraSelectValue(preferredId);
-      return;
-    } catch (e) {
-      console.warn("Selected camera failed:", preferredId, e);
-    }
-  }
-
+  const preferId = resolveCameraIdForFacing(facing);
   let lastErr;
-  for (const c of availableCameras) {
+
+  if (preferId) {
     try {
-      await html5.start(c.id, config, onScan, onError);
-      sessionStorage.setItem(CAMERA_PREF_KEY, c.id);
-      syncCameraSelectValue(c.id);
+      await html5.start(preferId, config, onScan, onError);
+      sessionStorage.setItem(CAMERA_FACING_KEY, facing);
+      sessionStorage.setItem(CAMERA_PREF_KEY, preferId);
+      setActiveFacingButton(facing);
       return;
     } catch (e) {
       lastErr = e;
-      console.warn("Camera failed:", c.id, e);
+      console.warn("Camera id failed:", preferId, e);
     }
   }
 
+  const mode = facing === "front" ? { facingMode: "user" } : { facingMode: "environment" };
   try {
-    await html5.start(true, config, onScan, onError);
+    await html5.start(mode, config, onScan, onError);
+    sessionStorage.setItem(CAMERA_FACING_KEY, facing);
+    setActiveFacingButton(facing);
     return;
   } catch (e) {
     lastErr = e;
+  }
+
+  const other = facing === "front" ? "back" : "front";
+  const otherId = resolveCameraIdForFacing(other);
+  if (otherId && otherId !== preferId) {
+    try {
+      await html5.start(otherId, config, onScan, onError);
+      sessionStorage.setItem(CAMERA_FACING_KEY, other);
+      sessionStorage.setItem(CAMERA_PREF_KEY, otherId);
+      setActiveFacingButton(other);
+      return;
+    } catch (e) {
+      lastErr = e;
+    }
   }
 
   throw lastErr || new Error("Could not start the camera.");
@@ -476,11 +505,10 @@ const SCANNER_CONFIG = { fps: 10, qrbox: { width: 260, height: 260 }, aspectRati
 
 async function restartScannerWithSelectedCamera() {
   if (!currentMember || cameraSwitching) return;
-  const cameraId = getSelectedCameraId();
-  if (!cameraId) return;
+  const facing = getSelectedFacing();
 
   cameraSwitching = true;
-  sessionStorage.setItem(CAMERA_PREF_KEY, cameraId);
+  sessionStorage.setItem(CAMERA_FACING_KEY, facing);
 
   try {
     if (scanner && scanning) {
@@ -497,7 +525,7 @@ async function restartScannerWithSelectedCamera() {
     if (cameraPermissionPanel) cameraPermissionPanel.classList.add("hidden");
 
     scanner = new Html5Qrcode("qr-reader");
-    await startScannerWithCameraId(scanner, SCANNER_CONFIG, cameraId);
+    await startScannerWithFacing(scanner, SCANNER_CONFIG, facing);
     scanning = true;
     showCameraActiveUi();
   } catch (err) {
@@ -510,6 +538,16 @@ async function restartScannerWithSelectedCamera() {
   } finally {
     cameraSwitching = false;
   }
+}
+
+function selectCameraFacing(facing) {
+  if (facing !== "front" && facing !== "back") return;
+  if (facing === "front" && !cameraFacingMap.front && !cameraFacingMap.back) return;
+  if (facing === "back" && !cameraFacingMap.back && !cameraFacingMap.front) return;
+
+  sessionStorage.setItem(CAMERA_FACING_KEY, facing);
+  setActiveFacingButton(facing);
+  if (scanning) void restartScannerWithSelectedCamera();
 }
 
 async function startScanner() {
@@ -550,8 +588,7 @@ async function startScanner() {
     if (cameraPermissionPanel) cameraPermissionPanel.classList.add("hidden");
 
     await loadCameraList();
-    const cameraId = getSelectedCameraId();
-    await startScannerWithCameraId(scanner, SCANNER_CONFIG, cameraId);
+    await startScannerWithFacing(scanner, SCANNER_CONFIG, getSelectedFacing());
 
     scanning = true;
     showCameraActiveUi();
@@ -693,11 +730,8 @@ btnScanAgain?.addEventListener("click", async () => {
 
 btnRequestCamera?.addEventListener("click", () => allowCameraAndScan());
 
-cameraSelect?.addEventListener("change", () => {
-  const id = cameraSelect.value;
-  if (id) sessionStorage.setItem(CAMERA_PREF_KEY, id);
-  if (scanning) void restartScannerWithSelectedCamera();
-});
+btnCamBack?.addEventListener("click", () => selectCameraFacing("back"));
+btnCamFront?.addEventListener("click", () => selectCameraFacing("front"));
 
 btnManualCheckin?.addEventListener("click", () => {
   const code = manualQrInput?.value?.trim() || VENUE_CHECKIN_CODE;

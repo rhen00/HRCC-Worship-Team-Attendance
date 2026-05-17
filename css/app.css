@@ -395,27 +395,48 @@ a {
   display: none;
 }
 
-.camera-picker-row label {
+.camera-picker-label {
   flex-shrink: 0;
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-muted);
 }
 
-.camera-picker-row select {
+.camera-facing-toggle {
   flex: 1;
-  min-width: 0;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.camera-facing-btn {
+  flex: 1;
   min-height: 44px;
   padding: 0.5rem 0.75rem;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 10px;
   background: var(--bg);
-  color: var(--text);
+  color: var(--text-muted);
   font-size: 0.9rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
-.camera-picker-row select:disabled {
-  opacity: 0.65;
+.camera-facing-btn:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--text);
+}
+
+.camera-facing-btn.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0f1419;
+}
+
+.camera-facing-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .scanner-controls {

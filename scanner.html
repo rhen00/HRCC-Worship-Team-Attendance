@@ -64,10 +64,15 @@
       </header>
 
       <div id="camera-picker-row" class="camera-picker-row hidden">
-        <label for="camera-select">Camera</label>
-        <select id="camera-select" aria-label="Choose camera">
-          <option value="">Loading cameras…</option>
-        </select>
+        <span class="camera-picker-label">Camera</span>
+        <div class="camera-facing-toggle" role="group" aria-label="Choose camera">
+          <button type="button" id="btn-cam-back" class="camera-facing-btn is-active" data-facing="back">
+            Back
+          </button>
+          <button type="button" id="btn-cam-front" class="camera-facing-btn" data-facing="front">
+            Front
+          </button>
+        </div>
       </div>
 
       <div class="scanner-viewport">
@@ -115,8 +120,8 @@
 
       <div class="scanner-controls">
         <p class="scanner-hint" id="scan-hint">
-          Point at the <strong>church check-in QR</strong> or your personal member QR. Use the
-          <strong>Camera</strong> menu above to switch cameras.
+          Point at the <strong>church check-in QR</strong> or your personal member QR. Use
+          <strong>Back</strong> / <strong>Front</strong> above to switch cameras.
         </p>
         <button type="button" id="btn-toggle-scan" class="btn btn-secondary hidden">Stop camera</button>
       </div>
